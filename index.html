@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: #f4f4f4;
+    }
+    .container {
+      background: white;
+      padding: 20px;
+      margin: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      width: 80%;
+      max-width: 600px;
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    input, button {
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .event {
+      border-bottom: 1px solid #ccc;
+      padding: 10px 0;
+    }
+    .event:last-child {
+      border-bottom: none;
+    }
+    .google-btn {
+      background-color: #4285f4;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    .google-btn img {
+      width: 20px;
+      height: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="loginContainer">
+    <h1>Admin Login</h1>
+    <button class="google-btn" id="googleLoginBtn">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google Logo">
+      Login with Google
+    </button>
+  </div>
+
+  <div class="container" id="adminContainer" style="display: none;">
+    <h1>Admin Panel</h1>
+    <form id="eventForm">
+      <label for="eventName">Name:</label>
+      <input type="text" id="eventName" required>
+      <label for="eventDate">Date:</label>
+      <input type="date" id="eventDate" required>
+      <label for="eventTime">Time:</label>
+      <input type="time" id="eventTime" required>
+      <label for="eventLocation">Location:</label>
+      <input type="text" id="eventLocation" required>
+      <label for="eventPictureUrl">Picture URL:</label>
+      <input type="url" id="eventPictureUrl" required>
+      <button type="submit">Add Event</button>
+    </form>
+    <h2>Events List</h2>
+    <div id="eventsList"></div>
+  </div>
+
+  <script type="module">
+    // Import Firebase functions
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js";
+
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyD1NcfC-IjVXwaxMZG0kjn35L2zT6C5UJk",
+      authDomain: "bhandra-1fd1b.firebaseapp.com",
+      projectId: "bhandra-1fd1b",
+      storageBucket: "bhandra-1fd1b.appspot.com",
+      messagingSenderId: "643089692619",
+      appId: "1:643089692619:web:1d8d430ce550ab19d1e84e",
+      measurementId: "G-RJNF23H1J8"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const googleProvider = new GoogleAuthProvider();
+
+    // Google Login
+    document.getElementById("googleLoginBtn").addEventListener("click", async () => {
+      try {
+        const result = await signInWithPopup(auth, googleProvider);
+        const user = result.user;
+        const idToken = await user.getIdToken();
+
+        // Check if the user's email is the admin email
+        if (user.email === 'amanmandal4072018@gmail.com') {
+          document.getElementById("loginContainer").style.display = "none";
+          document.getElementById("adminContainer").style.display = "block";
+          fetchEvents(idToken); // Fetch events after login
+        } else {
+          alert("Access denied: You do not have admin privileges.");
+          auth.signOut(); // Sign out the user if not an admin
+        }
+      } catch (error) {
+        alert("Google login failed: " + error.message);
+      }
+    });
+
+    // Add new event
+    document.getElementById("eventForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const name = document.getElementById("eventName").value;
+      const date = document.getElementById("eventDate").value;
+      const time = document.getElementById("eventTime").value;
+      const location = document.getElementById("eventLocation").value;
+      const pictureUrl = document.getElementById("eventPictureUrl").value;
+      const idToken = await auth.currentUser.getIdToken();
+
+      try {
+        const response = await fetch('https://backend-1-gfaq.onrender.com/events', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
+          body: JSON.stringify({ name, date, time, location, pictureUrl })
+        });
+
+        if (response.ok) {
+          alert("Event added successfully!");
+          fetchEvents(idToken); // Refresh the events list
+        } else {
+          const errorText = await response.text();
+          alert(`Failed to add event: ${errorText}`);
+        }
+      } catch (error) {
+        console.error("Error adding event: ", error);
+      }
+    });
+
+    // Fetch and display all events
+    async function fetchEvents(idToken) {
+      const eventsList = document.getElementById("eventsList");
+      eventsList.innerHTML = ""; // Clear existing content
+
+      try {
+        const response = await fetch('https://backend-1-gfaq.onrender.com/events', {
+          headers: {
+            'Authorization': `Bearer ${idToken}`
+          }
+        });
+
+        if (response.ok) {
+          const events = await response.json();
+          events.forEach((event) => {
+            const eventDiv = document.createElement("div");
+            eventDiv.className = "event";
+            eventDiv.innerHTML = `
+              <p><strong>Name:</strong> ${event.name}</p>
+              <p><strong>Date:</strong> ${event.date}</p>
+              <p><strong>Time:</strong> ${event.time}</p>
+              <p><strong>Location:</strong> ${event.location}</p>
+              <button onclick="updateEvent('${event.id}')">Update</button>
+              <button onclick="deleteEvent('${event.id}')">Delete</button>
+            `;
+            eventsList.appendChild(eventDiv);
+          });
+        } else {
+          const errorText = await response.text();
+          alert(`Failed to fetch events: ${errorText}`);
+        }
+      } catch (error) {
+        console.error("Error fetching events: ", error);
+      }
+    }
+
+    // Update event
+    window.updateEvent = async (id) => {
+      const name = prompt("Enter new name:");
+      const date = prompt("Enter new date (YYYY-MM-DD):");
+      const time = prompt("Enter new time (HH:MM):");
+      const location = prompt("Enter new location:");
+      const pictureUrl = prompt("Enter new picture URL:");
+      const idToken = await auth.currentUser.getIdToken();
+
+      if (name && date && time && location && pictureUrl) {
+        try {
+          const response = await fetch(`https://backend-1-gfaq.onrender.com/events/${id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({ name, date, time, location, pictureUrl })
+          });
+
+          if (response.ok) {
+            alert("Event updated successfully!");
+            fetchEvents(idToken); // Refresh the events list
+          } else {
+            const errorText = await response.text();
+            alert(`Failed to update event: ${errorText}`);
+          }
+        } catch (error) {
+          console.error("Error updating event: ", error);
+        }
+      }
+    };
+
+    // Delete event
+    window.deleteEvent = async (id) => {
+      const idToken = await auth.currentUser.getIdToken();
+
+      if (confirm("Are you sure you want to delete this event?")) {
+        try {
+          const response = await fetch(`https://backend-1-gfaq.onrender.com/events/${id}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${idToken}`
+            }
+          });
+
+          if (response.ok) {
+            alert("Event deleted successfully!");
+            fetchEvents(idToken); // Refresh the events list
+          } else {
+            const errorText = await response.text();
+            alert(`Failed to delete event: ${errorText}`);
+          }
+        } catch (error) {
+          console.error("Error deleting event: ", error);
+        }
+      }
+    };
+  </script>
+</body>
+</html>
